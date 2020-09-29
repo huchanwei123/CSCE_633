@@ -35,7 +35,7 @@ class data_preprocess(object):
                     self.data.append(feat_dict)
                 cnt = cnt + 1
         # shuffle data
-        random.shuffle(self.data)
+        #random.shuffle(self.data)
 
     def one_hot_encoding(self):
         # get the categories
@@ -64,7 +64,7 @@ class data_preprocess(object):
         else:
             return np.asarray([x[attribute] for x in self.data])
 
-    def get_DataMatrix(self, attr_list='all'):
+    def get_DataMatrix(self, attr_list='all', binarize_outcome=False):
         """
         choose the attribute and get the data matrix
         Input:
@@ -95,7 +95,15 @@ class data_preprocess(object):
                     feat_vec = np.append(feat_vec, self.data[i][attr])
 
             self.X[i] = feat_vec
-            self.y[i] = self.data[i]['combat_point']
+
+            # check if we need to binarize outcome for logistic regression
+            if not binarize_outcome:
+                self.y[i] = self.data[i]['combat_point']
+        
+        if binarize_outcome:
+            mean_outcome = sum(self.get_feature('combat_point')) / num_feature
+            self.y = np.where(self.get_feature('combat_point') > mean_outcome, 1, 0)
+        
 
 
     def split(self, num_fold, fold_to_test):

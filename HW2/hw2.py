@@ -2,6 +2,7 @@
 import pdb
 import numpy as np
 from itertools import combinations
+from sklearn.linear_model import LogisticRegression as Log_R
 
 # import my own module
 from my_data_preprocess import data_preprocess
@@ -48,7 +49,7 @@ if __name__ == '__main__':
     # define linear regression class
     total_fold = 5
     regressor = LinearRegression()
-    regressor_reg = LinearRegression(reg=True, _lambda=0.7)
+    regressor_reg = LinearRegression(reg=True, _lambda=0.5)
     
     for fold in range(total_fold):
         X_train, X_test, y_train, y_test = dp.split(total_fold, fold+1)
@@ -65,8 +66,20 @@ if __name__ == '__main__':
         sqrt_RSS_reg = regressor_reg.RSS_error(y_test)
 
         # plot the figure of prediction
-        plot_line([pred, pred_reg, y_test], ["pred", "pred w/reg", "true"], ["sample", "combat point"])
+        plot_line([pred, pred_reg, y_test], ["pred", "pred w/reg", "true"], ["Pokeman", "combat point"])
         
         print('Fold {}: sqrt RSS = {}'.format(fold+1, sqrt_RSS))
         print('Fold {}: sqrt RSS with regularization = {}'.format(fold+1, sqrt_RSS_reg))
+
+    # Question (viii)
+    dp.get_DataMatrix(binarize_outcome = True)
+    # split 80-20
+    X_train, X_test, y_train, y_test = dp.split(5, 1)
+
+    logistic_regression = Log_R(penalty='none')
+    logistic_regression.fit(X_train, y_train)
+    pred = logistic_regression.predict(X_test)
+    # calculate accuracy
+    accu = sum(pred == y_test)/len(y_test) * 100
+    print('Accuracy of logistic regression without regularization = {}'.format(accu))
 

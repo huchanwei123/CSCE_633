@@ -11,7 +11,7 @@ class LinearRegression(object):
         XTX = np.matmul(np.transpose(X_train), X_train)
         if self.reg:
             s = int(np.shape(XTX)[0])
-            lambda_mat = self._lambda * np.eye(s, dtype=float)
+            lambda_mat = self._lambda * np.eye(s)
             X_inv = np.matmul(np.linalg.pinv(XTX + lambda_mat), \
                           np.transpose(X_train))
         else:
