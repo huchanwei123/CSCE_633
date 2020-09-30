@@ -18,9 +18,6 @@ def plot_2D(attr1, attr1_label, attr2, attr2_label):
     plt.xlabel(attr1_label)
     plt.ylabel(attr2_label)
     plt.scatter(attr1, attr2)
-    #a1 = mpatches.Patch(color='r', label=attr1_label)
-    #a2 = mpatches.Patch(color='g', label=attr2_label)
-    #plt.legend(handles=[a1, a2])
     plt.show()
 
 def plot_line(data, label, xy_name):

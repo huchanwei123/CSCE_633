@@ -18,7 +18,6 @@ if __name__ == '__main__':
     categorical_attr = 'primary_strength'
     cpo = 'combat_point'    # combat point outcome
 
-    """ 
     # Question (ii)
     corr = -np.Inf
     min_corr_attr = ''
@@ -44,14 +43,12 @@ if __name__ == '__main__':
         plot_2D(attr1, c[0], attr2, c[1])
         print('Pearson correlation coefficient of {} and {} is {}'.format(c[0], c[1], Pcoef))
 
-    """
     # Question (v)
     X_all, y_all = dp.get_DataMatrix()
 
     # define linear regression class
     total_fold = 5
     
-    """
     for fold in range(total_fold):
         X_train, X_test, y_train, y_test = dp.split(X_all, y_all, total_fold, fold+1)
         # get weight
@@ -75,7 +72,6 @@ if __name__ == '__main__':
         print('Fold {}: sqrt RSS = {}'.format(fold+1, sqrt_RSS))
         
     print('Average sqrt RSS = {}'.format(sqrt_sum/total_fold))
-    """
 
     # Question (vi)
     print('\n----------Question (vi)+(vii)----------')
