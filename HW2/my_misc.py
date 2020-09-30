@@ -35,14 +35,15 @@ def plot_line(data, label, xy_name):
     """
     assert len(data) == len(label)
     x_len = len(data[0])
-    #fig, ax = plt.subplots(2,3)
+    marker_list = ['-o', '-x', '-*', '-<']
 
     for i in range(len(data)):
-        plt.plot(range(x_len), data[i], label=label[i])
+        plt.plot(range(x_len), data[i], marker_list[i], label=label[i])
         #plt.title('Fold {}'.format(i+1))
     plt.xlabel(xy_name[0]) 
     plt.ylabel(xy_name[1])
 
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
 
     plt.show()

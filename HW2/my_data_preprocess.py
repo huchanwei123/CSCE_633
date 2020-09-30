@@ -102,29 +102,27 @@ class data_preprocess(object):
         
         if binarize_outcome:
             mean_outcome = sum(self.get_feature('combat_point')) / num_feature
-            self.y = np.where(self.get_feature('combat_point') > mean_outcome, 1, 0)
-        
+            self.y = np.where(self.get_feature('combat_point') > mean_outcome, 1, 0)    
+        return self.X, self.y
 
-
-    def split(self, num_fold, fold_to_test):
+    def split(self, X, y, num_fold, fold_to_test):
         # start splitting
-        fz = math.floor(len(self.data)/num_fold)
+        fz = math.floor(len(X)/num_fold)
 
         if fold_to_test == num_fold:
-            X_train = self.X[:fz*(fold_to_test-1)]
-            y_train = self.y[:fz*(fold_to_test-1)]
-            X_test = self.X[fz*(fold_to_test-1):]
-            y_test = self.y[fz*(fold_to_test-1):]
+            X_train = X[:fz*(fold_to_test-1)]
+            y_train = y[:fz*(fold_to_test-1)]
+            X_test = X[fz*(fold_to_test-1):]
+            y_test = y[fz*(fold_to_test-1):]
         elif fold_to_test == 1:
-            X_train = self.X[fz:]
-            y_train = self.y[fz:]
-            X_test = self.X[:fz]
-            y_test = self.y[:fz]
+            X_train = X[fz:]
+            y_train = y[fz:]
+            X_test = X[:fz]
+            y_test = y[:fz]
         else:
-            X_train = np.concatenate((self.X[:fz*(fold_to_test-1)], self.X[fz*fold_to_test:]), axis=0)
-            y_train = np.concatenate((self.y[:fz*(fold_to_test-1)], self.y[fz*fold_to_test:]), axis=0)
-            X_test = self.X[fz*(fold_to_test-1):fz*fold_to_test]
-            y_test = self.y[fz*(fold_to_test-1):fz*fold_to_test]
+            X_train = np.concatenate((X[:fz*(fold_to_test-1)], X[fz*fold_to_test:]), axis=0)
+            y_train = np.concatenate((y[:fz*(fold_to_test-1)], y[fz*fold_to_test:]), axis=0)
+            X_test = X[fz*(fold_to_test-1):fz*fold_to_test]
+            y_test = y[fz*(fold_to_test-1):fz*fold_to_test]
 
         return X_train, X_test, y_train, y_test
-
