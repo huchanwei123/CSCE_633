@@ -1,8 +1,6 @@
 # CSCE 633 - Machine Learning
 # HW3 - Question 2
 import os
-import cv2
-import csv
 import pdb
 import torch
 import pandas as pd
@@ -10,10 +8,13 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
+import torchvision.models as models
 from torchvision.transforms import transforms
 from torch.utils.data import DataLoader
 
+# import my function
 from EmotionDataset import EmotionDataset
+from model import FNN, CNN
 
 EMOTION_MAP = {0: 'Angry', 1: 'Disgust', 2: 'Fear', 3: 'Happy', 4: 'Sad', 5: 'Surprise', 6: 'Neutral'}
 
@@ -46,30 +47,17 @@ def read_data(data_dir):
 
     return train_img, train_label, val_img, val_label, test_img, test_label
 
-class FNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(FNN, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-
-        # layers
-        self.fc1 = nn.Linear(self.input_size, self.hidden_size)
-        self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.fc3 = nn.Linear(self.hidden_size, self.output_size)
-
-        # activation
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.relu(x)
-        x = self.fc2(x)
-        x = self.relu(x)
-        x = self.fc3(x)
-
-        return x
+def plot_acc(curve_list, curve_label):
+    assert len(curve_list) == len(curve_label)
+    
+    data_len = len(curve_list)
+    for i in range(data_len):
+        plt.plot(range(len(curve_list[i])), curve_list[i], label=curve_label[i])
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    
+    plt.legend()
+    plt.show()
 
 def test(net, testloader):
     correct = 0
@@ -79,18 +67,23 @@ def test(net, testloader):
             inputs, labels = data[0].to(device, non_blocking=True), data[1].to(device, non_blocking=True)
             outputs = net(inputs)
             _, predicted = torch.max(outputs.data, 1)
+            #pdb.set_trace()
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     return 100 * correct / total
 
 def train(net, trainloader, optimizer, criterion):
+    net.train()
     running_loss = 0
     for data in trainloader:
+        #pdb.set_trace()
         # data pixels and labels to GPU if available
         inputs, labels = data[0].to(device, non_blocking=True), data[1].to(device, non_blocking=True)
+        
         # set the parameter gradients to zero
         optimizer.zero_grad()
         outputs = net(inputs)
+        
         loss = criterion(outputs, labels)
         # propagate the loss backward
         loss.backward()
@@ -102,35 +95,53 @@ def train(net, trainloader, optimizer, criterion):
 
 if __name__ == '__main__':
     # read data first
-    data_dir = '../../hw3_data'
-    train_img, train_label, val_img, val_label, test_img, test_label = read_data(data_dir)
-
-    train_data = EmotionDataset(train_img, train_label)
-    val_data = EmotionDataset(val_img, val_label)
-    test_data = EmotionDataset(test_img, test_label)
-    
-    # dataloaders
-    trainloader = DataLoader(train_data, batch_size=128, shuffle=True)
-    valloader = DataLoader(val_data, batch_size=128, shuffle=True)
-    testloader = DataLoader(test_data, batch_size=128, shuffle=True)
-
+    data_dir = './'
     # start doing training
     INPUT_SIZE = 48*48
-    HIDDEN_SIZE = 4096
+    HIDDEN_SIZE = 2048
     OUTPUT_SIZE = 7
-    fnn = FNN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
+    MAX_EPOCH = 200
+    net = 'CNN'
+    resize = net =='CNN'
+    train_img, train_label, val_img, val_label, test_img, test_label = read_data(data_dir)
 
-    optimizer = optim.Adam(fnn.parameters())
+    train_data = EmotionDataset(train_img, train_label, resize=resize)
+    val_data = EmotionDataset(val_img, val_label, resize=resize)
+    test_data = EmotionDataset(test_img, test_label, resize=resize)
+    
+    # dataloaders
+    trainloader = DataLoader(train_data, batch_size=64, shuffle=True)
+    valloader = DataLoader(val_data, batch_size=64, shuffle=True)
+    testloader = DataLoader(test_data, batch_size=64, shuffle=True)
 
+    if net == 'FNN':
+        model = FNN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
+    elif net == 'CNN':
+        model = CNN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
+        #model = models.alexnet()
+    else:
+        raise ValueError('{} not supported yet!'.format(net))
+
+    #optimizer = optim.Adam(model.parameters())
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+                
     criterion = nn.CrossEntropyLoss()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    fnn = fnn.to(device)
+    model = model.to(device)
     criterion = criterion.to(device)
 
-    for epoch in range(10):
-        running_loss = train(fnn, trainloader, optimizer, criterion)
-        train_acc = test(fnn, trainloader)
-        val_acc = test(fnn, valloader)
-        print('[Epoch {}] loss: {} | training acc: {} | val acc: {}'.format(epoch + 1, running_loss/len(trainloader), train_acc, val_acc))
+    Acc_train, Acc_val = [], []
+
+    for epoch in range(MAX_EPOCH):
+        running_loss = train(model, trainloader, optimizer, criterion)
+        Acc_train.append(test(model, trainloader))
+        Acc_val.append(test(model, valloader))
+        print('[Epoch %d] loss: %.3f, training acc: %.3f, val acc: %.3f' % \
+              (epoch + 1, running_loss/len(trainloader), Acc_train[epoch], Acc_val[epoch]))
+    
+    test_acc = test(model, testloader)
+    print('Testing accuracy = %.3f' % test_acc)
         
+    # plot 
+    plot_acc([Acc_train, Acc_val], ['Training', 'Validation'])
