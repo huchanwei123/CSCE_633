@@ -2,64 +2,36 @@
 # HW3 - Question 2
 import os
 import pdb
+import time
 import torch
 import pandas as pd
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
-import torchvision.models as models
 from torchvision.transforms import transforms
 from torch.utils.data import DataLoader
+import pytorch_model_summary as pms
 
 # import my function
 from EmotionDataset import EmotionDataset
 from model import FNN, CNN
+from misc import read_data, plot_acc
 
-EMOTION_MAP = {0: 'Angry', 1: 'Disgust', 2: 'Fear', 3: 'Happy', 4: 'Sad', 5: 'Surprise', 6: 'Neutral'}
-
-# read the csv file
-def read_data(data_dir):
-    train_data = pd.read_csv(os.path.join(data_dir, 'Q2_Train_Data.csv'))
-    val_data = pd.read_csv(os.path.join(data_dir, 'Q2_Validation_Data.csv'))
-    test_data = pd.read_csv(os.path.join(data_dir, 'Q2_Test_Data.csv'))
-
-    # get data and labels
-    # training data
-    train_img = train_data.iloc[:, 1].apply(lambda x: x.split())
-    train_img = [list(map(int, train_img[i])) for i in range(len(train_data))]
-    train_img = np.asarray(train_img, dtype=np.float32)
-    train_label = train_data.iloc[:, 0]
-
-    # validation data
-    val_img = val_data.iloc[:, 1].apply(lambda x: x.split())
-    val_img = [list(map(int, val_img[i])) for i in range(len(val_data))]
-    val_img = np.asarray(val_img, dtype=np.float32)
-    val_label = val_data.iloc[:, 0]
-
-    # testing data
-    test_img = test_data.iloc[:, 1].apply(lambda x: x.split())
-    test_img = [list(map(int, test_img[i])) for i in range(len(test_data))]
-    test_img = np.asarray(test_img, dtype=np.float32)
-    test_label = test_data.iloc[:, 0]
-
-    print('Data Processing Done...\n')
-
-    return train_img, train_label, val_img, val_label, test_img, test_label
-
-def plot_acc(curve_list, curve_label):
-    assert len(curve_list) == len(curve_label)
-    
-    data_len = len(curve_list)
-    for i in range(data_len):
-        plt.plot(range(len(curve_list[i])), curve_list[i], label=curve_label[i])
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    
-    plt.legend()
-    plt.show()
-
+# read data first
+data_dir = './'
+# start doing training
+HIDDEN_SIZE = 4096
+MAX_EPOCH = 1000
+batch_size = 64
+net = 'FNN'
+phase = 'test'
+set_ = 'set4_HOG'
+checkpoint = os.path.join('./model', net)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+  
 def test(net, testloader):
+    net.eval()
     correct = 0
     total = 0
     with torch.no_grad():
@@ -67,81 +39,123 @@ def test(net, testloader):
             inputs, labels = data[0].to(device, non_blocking=True), data[1].to(device, non_blocking=True)
             outputs = net(inputs)
             _, predicted = torch.max(outputs.data, 1)
-            #pdb.set_trace()
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     return 100 * correct / total
 
-def train(net, trainloader, optimizer, criterion):
+def train(net, trainloader, valloader, optimizer, criterion):
+    Acc_train, Acc_val, train_loss = [], [], []
+    best_val_acc = 0
     net.train()
+
     running_loss = 0
     for data in trainloader:
-        #pdb.set_trace()
         # data pixels and labels to GPU if available
         inputs, labels = data[0].to(device, non_blocking=True), data[1].to(device, non_blocking=True)
-        
+    
         # set the parameter gradients to zero
         optimizer.zero_grad()
         outputs = net(inputs)
-        
+    
         loss = criterion(outputs, labels)
-        # propagate the loss backward
         loss.backward()
-        # update the gradients
         optimizer.step()
 
         running_loss += loss.item()
+    
+    train_loss.append(running_loss/len(trainloader))
+    
     return running_loss
 
 if __name__ == '__main__':
-    # read data first
-    data_dir = './'
-    # start doing training
-    INPUT_SIZE = 48*48
-    HIDDEN_SIZE = 2048
-    OUTPUT_SIZE = 7
-    MAX_EPOCH = 200
-    net = 'CNN'
+
     resize = net =='CNN'
     train_img, train_label, val_img, val_label, test_img, test_label = read_data(data_dir)
 
     train_data = EmotionDataset(train_img, train_label, resize=resize)
+    # show random sample
+    #train_data.show_random_img(spc=2)
+    #train_data.data_distribution()
+    
     val_data = EmotionDataset(val_img, val_label, resize=resize)
     test_data = EmotionDataset(test_img, test_label, resize=resize)
     
     # dataloaders
-    trainloader = DataLoader(train_data, batch_size=64, shuffle=True)
-    valloader = DataLoader(val_data, batch_size=64, shuffle=True)
-    testloader = DataLoader(test_data, batch_size=64, shuffle=True)
+    trainloader = DataLoader(train_data, batch_size, shuffle=True)
+    valloader = DataLoader(val_data, batch_size, shuffle=True)
+    testloader = DataLoader(test_data, batch_size, shuffle=True)
 
     if net == 'FNN':
-        model = FNN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
+        model = FNN(HIDDEN_SIZE)
+        print(pms.summary(model, torch.zeros((1, 2304)), 
+                      show_input=True, show_hierarchical=False))
     elif net == 'CNN':
-        model = CNN(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE)
-        #model = models.alexnet()
+        model = CNN()
+        print(pms.summary(model, torch.zeros((1, 1, 48, 48)), 
+                      show_input=True, show_hierarchical=False))
     else:
         raise ValueError('{} not supported yet!'.format(net))
-
-    #optimizer = optim.Adam(model.parameters())
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    
+    optimizer = optim.Adam(model.parameters())    
+    #optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
                 
     criterion = nn.CrossEntropyLoss()
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     criterion = criterion.to(device)
-
-    Acc_train, Acc_val = [], []
-
-    for epoch in range(MAX_EPOCH):
-        running_loss = train(model, trainloader, optimizer, criterion)
-        Acc_train.append(test(model, trainloader))
-        Acc_val.append(test(model, valloader))
-        print('[Epoch %d] loss: %.3f, training acc: %.3f, val acc: %.3f' % \
-              (epoch + 1, running_loss/len(trainloader), Acc_train[epoch], Acc_val[epoch]))
     
-    test_acc = test(model, testloader)
-    print('Testing accuracy = %.3f' % test_acc)
+    t0 = time.process_time()
+    Acc_train, Acc_val, train_loss = [], [], []
+    best_val_acc = 0
+    best_epoch = 0
+    
+    if phase == 'train':    
+        for epoch in range(1, MAX_EPOCH+1):
+            # start traning for one epoch
+            running_loss = train(model, trainloader, valloader, optimizer, criterion)
+            # get the average loss
+            train_loss.append(running_loss/len(trainloader))
+            
+            # test the result
+            train_acc = test(model, trainloader)
+            val_acc = test(model, valloader)
+            Acc_train.append(train_acc)
+            Acc_val.append(val_acc)
+            
+            # store the model and print out result
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_epoch = epoch
+                PATH = os.path.join(checkpoint, set_+'_best.pt')
+                torch.save(model.state_dict(), PATH)
+                print('[Epoch %d] loss: %.3f, training acc: %.3f, val acc: %.3f -> Model saved!' % \
+                  (epoch, running_loss/len(trainloader), train_acc, val_acc))
+            else:
+                print('[Epoch %d] loss: %.3f, training acc: %.3f, val acc: %.3f' % \
+              (epoch, running_loss/len(trainloader), train_acc, val_acc))
+            
+        print('Training Done. Best validation acc = %.3f at epoch %d.\n Time elapsed: %.2f sec\n' 
+                                      % (best_val_acc, best_epoch, time.process_time()-t0))
         
-    # plot 
-    plot_acc([Acc_train, Acc_val], ['Training', 'Validation'])
+        test_acc = test(model, testloader)
+        print('Testing accuracy = %.3f' % test_acc)
+            
+        # plot 
+        plot_acc([Acc_train, Acc_val], ['Training', 'Validation'])
+        
+        plt.plot(range(MAX_EPOCH), train_loss)
+        plt.xlabel('Epoch')
+        plt.ylabel('Cross Entropy Loss')
+        plt.show()
+        
+        # save loss
+        df = pd.DataFrame(list(zip(Acc_train, Acc_val, train_loss)), 
+                          columns=["train_acc", "val_acc", "train_loss"])
+        df.to_csv(checkpoint + '/' + set_ + '_stats.csv', index=False)
+    elif phase == 'test':
+        PATH = os.path.join(checkpoint, set_+'_best.pt')
+        model.load_state_dict(torch.load(PATH))
+        test_acc = test(model, testloader)
+        print('Testing accuracy = %.3f' % test_acc)
+    else:
+        raise ValueError('Wrong phase!')

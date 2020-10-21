@@ -1,7 +1,10 @@
-import cv2
+import pdb
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
+
+EMOTION_MAP = {0: 'Angry', 1: 'Disgust', 2: 'Fear', 3: 'Happy',
+               4: 'Sad', 5: 'Surprise', 6: 'Neutral'}
 
 class EmotionDataset(Dataset):
     def __init__(self, images, labels=None, transforms=None, resize=False):
@@ -17,10 +20,10 @@ class EmotionDataset(Dataset):
         data = self.X[i, :]
         if self.resize:
             data = np.asarray(data).astype(np.float32).reshape(1, 48, 48)
-            #data = np.asarray(data).astype(np.float32).reshape(48, 48, 1)
+            
         if self.transforms:
-            data = self.transforms(data)
-        
+            data = self.transforms(data)      
+
         #data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
         #data = np.moveaxis(data, 2, 0)
 
@@ -28,9 +31,32 @@ class EmotionDataset(Dataset):
             return (data, self.y[i])
         else:
             return data
-        
-    def imshow(self):
+
+    def data_distribution(self):
+        # Help calculate data distribution
+        unique_label = set(self.y)
+        total_samples = 0
+        for i in unique_label:
+            samples_of_class = np.sum(self.y == i)
+            total_samples += samples_of_class
+            print('%s: %d samples' % (EMOTION_MAP[i], samples_of_class))
+        assert total_samples == len(self.X)
+        print('=> Total %d samples\n' % total_samples)
+    
+    def show_random_img(self, spc):
+        # spc: samples per class
         # show random examples for each class
-        pass
-        #plt.imshow(np.transpose(npimg, (1, 2, 0)))
-        #plt.show()
+        class_num = len(set(self.y))
+        # initial figure
+        
+        fig, axs = plt.subplots(spc, class_num,
+                                figsize=(15, spc*2))
+        
+        for c in range(class_num):
+            idx = np.where(self.y == c)[0]
+            random_img = self.X[np.random.choice(idx, spc)]
+            axs[0, c].set_title(EMOTION_MAP[c])
+            for i in range(spc):
+                img = random_img[i].reshape(48, 48)
+                axs[i, c].axis('off')
+                axs[i, c].imshow(img, cmap='gray', vmin=0, vmax=255)
